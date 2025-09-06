@@ -4,7 +4,7 @@ import ChatPanel from './components/ChatPanel';
 import PreviewPanel from './components/PreviewPanel';
 
 // --- Configuration ---
-const API_BASE_URL = '/api'; // FastAPI backend URL - proxy through Vite
+const API_BASE_URL = 'https://template-generator-backend.onrender.com/api'; // FastAPI backend URL - deployed on Render
 
 function App() {
   const [template, setTemplate] = useState(['Executive Summary', 'Key Findings', 'Conclusion']);

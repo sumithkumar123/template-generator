@@ -16,6 +16,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],  # Allow all methods
     allow_headers=["*"],  # Allow all headers
+    expose_headers=["*"],  # Expose all headers to frontend
+    allow_origin_regex="http://localhost:.*"  # Allow localhost origins for frontend dev
 )
 
 # --- Routes ---
