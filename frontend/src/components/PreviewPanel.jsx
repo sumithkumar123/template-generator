@@ -1,7 +1,80 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import jsPDF from 'jspdf';
+import { Document, Packer, Paragraph, HeadingLevel, TextRun } from 'docx';
+import { saveAs } from 'file-saver';
 
 const PreviewPanel = ({ document, isLoading, error }) => {
+  // Export to PDF function
+  const exportToPDF = () => {
+    const pdf = new jsPDF();
+    pdf.setFontSize(20);
+    pdf.text('Generated Report', 20, 30);
+    
+    // Clean content for PDF (remove markdown formatting)
+    const cleanContent = document
+      .replace(/## (.*)/g, '$1')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\[cite:.*?\]/g, '')
+      .replace(/---/g, '')
+      .replace(/\*/g, '•');
+    
+    const lines = pdf.splitTextToSize(cleanContent, 170);
+    pdf.setFontSize(12);
+    pdf.text(lines, 20, 50);
+    
+    pdf.save('generated-report.pdf');
+  };
+
+  // Export to DOCX function
+  const exportToDOCX = async () => {
+    const sections = document.split('## ').filter(section => section.trim());
+    const docElements = [];
+
+    sections.forEach(section => {
+      const lines = section.split('\n');
+      const title = lines[0];
+      const content = lines.slice(1).join('\n');
+
+      if (title) {
+        docElements.push(
+          new Paragraph({
+            children: [new TextRun({ text: title, bold: true, size: 28 })],
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 400, after: 200 }
+          })
+        );
+      }
+
+      const cleanContent = content
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\[cite:.*?\]/g, '')
+        .replace(/---/g, '')
+        .split('\n')
+        .filter(line => line.trim());
+
+      cleanContent.forEach(line => {
+        if (line.trim()) {
+          docElements.push(
+            new Paragraph({
+              children: [new TextRun(line.trim())],
+              spacing: { after: 200 }
+            })
+          );
+        }
+      });
+    });
+
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: docElements
+      }]
+    });
+
+    const blob = await Packer.toBlob(doc);
+    saveAs(blob, 'generated-report.docx');
+  };
   // Enhanced markdown renderer with custom components
   const components = {
     h2: ({ children }) => (
@@ -142,6 +215,28 @@ const PreviewPanel = ({ document, isLoading, error }) => {
 
         {document && (
           <div className="document-content">
+            {/* Export Section */}
+            <div className="flex justify-end mb-6 space-x-3">
+              <button
+                onClick={exportToPDF}
+                className="inline-flex items-center px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors shadow-sm"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export PDF
+              </button>
+              <button
+                onClick={exportToDOCX}
+                className="inline-flex items-center px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors shadow-sm"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export DOCX
+              </button>
+            </div>
+            
             <article className="prose prose-lg max-w-none">
               <ReactMarkdown 
                 components={components}

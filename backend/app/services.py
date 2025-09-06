@@ -2,6 +2,8 @@ import os
 from openai import OpenAI
 import docx
 import fitz  # PyMuPDF
+import pandas as pd
+from openpyxl import load_workbook
 
 # --- Configuration ---
 # IMPORTANT: Set your OpenAI API key in your environment variables.
