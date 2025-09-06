@@ -4,12 +4,18 @@ import jsPDF from 'jspdf';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 
-const PreviewPanel = ({ document, isLoading, error }) => {
-  // Export to PDF function
+const PreviewPanel = ({ document, isLoading, error, onExportPPTX, tone, style }) => {
+  // Export to PDF function with enhanced formatting
   const exportToPDF = () => {
     const pdf = new jsPDF();
-    pdf.setFontSize(20);
+    
+    // Add title page
+    pdf.setFontSize(24);
     pdf.text('Generated Report', 20, 30);
+    
+    pdf.setFontSize(12);
+    pdf.text(`Tone: ${tone} | Style: ${style}`, 20, 45);
+    pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 55);
     
     // Clean content for PDF (remove markdown formatting)
     const cleanContent = document
@@ -20,16 +26,36 @@ const PreviewPanel = ({ document, isLoading, error }) => {
       .replace(/\*/g, '•');
     
     const lines = pdf.splitTextToSize(cleanContent, 170);
-    pdf.setFontSize(12);
-    pdf.text(lines, 20, 50);
+    pdf.setFontSize(10);
+    pdf.text(lines, 20, 70);
     
-    pdf.save('generated-report.pdf');
+    pdf.save(`generated-report-${tone}-${style}.pdf`);
   };
 
-  // Export to DOCX function
+  // Export to DOCX function with enhanced formatting
   const exportToDOCX = async () => {
     const sections = document.split('## ').filter(section => section.trim());
     const docElements = [];
+
+    // Add title
+    docElements.push(
+      new Paragraph({
+        children: [new TextRun({ text: "Generated Report", bold: true, size: 32 })],
+        heading: HeadingLevel.TITLE,
+        spacing: { before: 0, after: 400 }
+      })
+    );
+
+    // Add metadata
+    docElements.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: `Tone: ${tone} | Style: ${style}`, italics: true, size: 20 }),
+          new TextRun({ text: `\nGenerated on: ${new Date().toLocaleDateString()}`, italics: true, size: 20 })
+        ],
+        spacing: { before: 200, after: 400 }
+      })
+    );
 
     sections.forEach(section => {
       const lines = section.split('\n');
@@ -55,9 +81,16 @@ const PreviewPanel = ({ document, isLoading, error }) => {
 
       cleanContent.forEach(line => {
         if (line.trim()) {
+          // Detect if line is a citation
+          const isCitation = line.includes('[Source:');
+          
           docElements.push(
             new Paragraph({
-              children: [new TextRun(line.trim())],
+              children: [new TextRun({ 
+                text: line.trim(), 
+                italics: isCitation,
+                size: isCitation ? 16 : 20
+              })],
               spacing: { after: 200 }
             })
           );
@@ -73,8 +106,9 @@ const PreviewPanel = ({ document, isLoading, error }) => {
     });
 
     const blob = await Packer.toBlob(doc);
-    saveAs(blob, 'generated-report.docx');
+    saveAs(blob, `generated-report-${tone}-${style}.docx`);
   };
+
   // Enhanced markdown renderer with custom components
   const components = {
     h2: ({ children }) => (
@@ -88,203 +122,171 @@ const PreviewPanel = ({ document, isLoading, error }) => {
       </h3>
     ),
     p: ({ children }) => (
-      <p className="text-gray-700 leading-7 mb-4 text-justify">
+      <p className="text-gray-700 leading-relaxed mb-4">
         {children}
       </p>
     ),
+    strong: ({ children }) => (
+      <strong className="font-semibold text-gray-800">
+        {children}
+      </strong>
+    ),
     ul: ({ children }) => (
-      <ul className="list-none space-y-2 mb-4 ml-4">
+      <ul className="list-disc list-inside text-gray-700 mb-4 space-y-1">
         {children}
       </ul>
     ),
-    li: ({ children }) => (
-      <li className="flex items-start text-gray-700">
-        <span className="text-indigo-500 mr-3 mt-1">▪</span>
-        <span className="flex-1">{children}</span>
-      </li>
-    ),
     ol: ({ children }) => (
-      <ol className="list-decimal list-inside space-y-2 mb-4 ml-4 text-gray-700">
+      <ol className="list-decimal list-inside text-gray-700 mb-4 space-y-1">
         {children}
       </ol>
     ),
-    strong: ({ children }) => (
-      <strong className="font-semibold text-gray-800">{children}</strong>
-    ),
-    em: ({ children }) => (
-      <em className="italic text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded text-sm">
+    li: ({ children }) => (
+      <li className="mb-1">
         {children}
-      </em>
+      </li>
     ),
+    // Enhanced citation rendering
+    code: ({ children }) => {
+      const text = children?.toString() || '';
+      if (text.startsWith('cite:')) {
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800 ml-1">
+            📄 {text.replace('cite:', '').trim()}
+          </span>
+        );
+      }
+      return (
+        <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm">
+          {children}
+        </code>
+      );
+    },
     hr: () => (
-      <div className="my-8 flex items-center">
-        <div className="flex-1 border-t border-gray-200"></div>
-        <div className="mx-4 text-gray-400">⬥</div>
-        <div className="flex-1 border-t border-gray-200"></div>
-      </div>
-    ),
+      <hr className="my-8 border-t-2 border-gray-200" />
+    )
   };
 
-  // Process document content to enhance citations
-  const processContent = (content) => {
-    if (!content) return content;
-    
-    // Enhanced citation pattern with hover tooltips
-    return content.replace(
-      /\[cite: ([^,]+), (page \d+|para \d+)\]/g,
-      '<span class="citation-tag">📄 <span class="citation-text">$1, $2</span></span>'
-    );
-  };
+  // Process document for better citation display
+  const processedDocument = document
+    .replace(/\[cite:(.*?)\]/g, '`cite:$1`')
+    .replace(/\[Source:(.*?)\]/g, '`cite:$1`');
 
   return (
-    <div className="w-2/3 h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8 overflow-y-auto">
-      <div className="bg-white p-12 rounded-xl shadow-xl max-w-5xl mx-auto min-h-full border border-gray-200">
-        {/* Header Section */}
-        <div className="text-center mb-8 pb-6 border-b border-gray-200">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full mb-4">
-            <span className="text-white text-2xl">📊</span>
+    <div className="w-2/3 h-screen bg-white flex flex-col">
+      {/* Header with export options */}
+      <div className="bg-gray-50 border-b border-gray-200 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800">Document Preview</h2>
+            <p className="text-sm text-gray-600">
+              {tone && style && `${tone} tone • ${style} style`}
+            </p>
           </div>
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Generated Report</h1>
-          <p className="text-gray-500">AI-Powered Evidence-Backed Analysis</p>
-          <div className="flex justify-center mt-4 space-x-4 text-sm text-gray-400">
-            <span>🤖 AI Generated</span>
-            <span>•</span>
-            <span>📚 Evidence-Backed</span>
-            <span>•</span>
-            <span>🎯 Custom Template</span>
+          
+          <div className="flex space-x-2">
+            <button
+              onClick={exportToPDF}
+              disabled={!document || isLoading}
+              className="flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 text-sm"
+            >
+              📄 Export PDF
+            </button>
+            <button
+              onClick={exportToDOCX}
+              disabled={!document || isLoading}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 text-sm"
+            >
+              📝 Export Word
+            </button>
+            <button
+              onClick={onExportPPTX}
+              disabled={!document || isLoading}
+              className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 text-sm"
+            >
+              📊 Export PowerPoint
+            </button>
           </div>
         </div>
-        
-        {isLoading && (
-          <div className="flex flex-col justify-center items-center h-64">
-            <div className="relative">
-              <div className="animate-spin rounded-full h-20 w-20 border-4 border-indigo-200"></div>
-              <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-indigo-600 absolute top-0 left-0"></div>
-            </div>
-            <p className="mt-6 text-gray-600 font-medium">Generating your professional report...</p>
-            <p className="mt-2 text-gray-400 text-sm">Analyzing documents and creating content</p>
-          </div>
-        )}
+      </div>
 
-        {error && (
-          <div className="bg-gradient-to-r from-red-50 to-red-100 border border-red-200 rounded-lg p-6 shadow-sm">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <span className="text-red-500 text-2xl">⚠️</span>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-red-800 font-semibold">Generation Error</h3>
-                <p className="text-red-700 mt-1">{error}</p>
-              </div>
+      {/* Content area */}
+      <div className="flex-1 overflow-auto">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Generating your document...</p>
+              <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
             </div>
           </div>
-        )}
-
-        {!isLoading && !error && !document && (
-          <div className="text-center py-20">
-            <div className="mb-8">
-              <div className="inline-flex items-center justify-center w-24 h-24 bg-gray-100 rounded-full mb-6">
-                <span className="text-4xl text-gray-400">📝</span>
-              </div>
-              <h3 className="text-2xl font-semibold text-gray-700 mb-3">Ready to Generate</h3>
-              <p className="text-gray-500 mb-2">Your professional report will appear here</p>
-              <p className="text-sm text-gray-400">Complete the setup on the left and click "Generate Document"</p>
+        ) : error ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center max-w-md">
+              <div className="text-red-500 text-6xl mb-4">⚠️</div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Generation Error</h3>
+              <p className="text-red-600 mb-4">{error}</p>
+              <p className="text-sm text-gray-500">
+                Please check your inputs and try again. If the problem persists, ensure your API key is configured correctly.
+              </p>
             </div>
-            <div className="grid grid-cols-3 gap-4 max-w-md mx-auto text-sm text-gray-400">
-              <div className="text-center">
-                <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <span className="text-indigo-600">1</span>
-                </div>
-                <p>Upload Files</p>
+          </div>
+        ) : document ? (
+          <div className="p-8">
+            {/* Document metadata */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>Generated: {new Date().toLocaleString()}</span>
+                <span>Words: ~{document.split(' ').length}</span>
+                <span>Sections: {document.split('## ').length - 1}</span>
               </div>
-              <div className="text-center">
-                <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <span className="text-indigo-600">2</span>
-                </div>
-                <p>Design Template</p>
-              </div>
-              <div className="text-center">
-                <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <span className="text-indigo-600">3</span>
-                </div>
-                <p>Generate Report</p>
+            </div>
+
+            {/* Document content */}
+            <div className="prose prose-lg max-w-none">
+              <ReactMarkdown components={components}>
+                {processedDocument}
+              </ReactMarkdown>
+            </div>
+
+            {/* Footer with traceability info */}
+            <div className="mt-12 pt-6 border-t border-gray-200">
+              <div className="text-xs text-gray-500 space-y-1">
+                <p>🤖 Generated using AI-Powered Template Generation Engine</p>
+                <p>📋 Template Configuration: {tone} tone, {style} style</p>
+                <p>🔗 All statements are evidence-backed with source citations</p>
               </div>
             </div>
           </div>
-        )}
-
-        {document && (
-          <div className="document-content">
-            {/* Export Section */}
-            <div className="flex justify-end mb-6 space-x-3">
-              <button
-                onClick={exportToPDF}
-                className="inline-flex items-center px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors shadow-sm"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Export PDF
-              </button>
-              <button
-                onClick={exportToDOCX}
-                className="inline-flex items-center px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors shadow-sm"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Export DOCX
-              </button>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center max-w-md">
+              <div className="text-gray-400 text-6xl mb-4">📄</div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Ready to Generate</h3>
+              <p className="text-gray-600 mb-4">
+                Upload your source documents, define your template structure, and click "Generate Report" to create your document.
+              </p>
+              <div className="text-sm text-gray-500 space-y-1">
+                <p>✅ Supports PDF, Word, Excel, PowerPoint files</p>
+                <p>✅ AI-powered content generation</p>
+                <p>✅ Evidence-backed with citations</p>
+                <p>✅ Export to multiple formats</p>
+              </div>
             </div>
-            
-            <article className="prose prose-lg max-w-none">
-              <ReactMarkdown 
-                components={components}
-                children={processContent(document)}
-              />
-            </article>
           </div>
         )}
       </div>
-      
-      {/* Custom CSS for enhanced styling */}
+
+      {/* Enhanced CSS for better styling */}
       <style jsx>{`
-        .citation-tag {
-          display: inline-flex;
-          align-items: center;
-          background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-          color: #4338ca;
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 0.75rem;
-          font-weight: 500;
-          margin: 0 2px;
-          border: 1px solid #c7d2fe;
-          transition: all 0.2s ease;
-          cursor: pointer;
+        .prose {
+          max-width: none;
         }
-        
-        .citation-tag:hover {
-          background: linear-gradient(135deg, #c7d2fe 0%, #a5b4fc 100%);
-          transform: translateY(-1px);
-          box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+        .prose h2 {
+          scroll-margin-top: 2rem;
         }
-        
-        .citation-text {
-          margin-left: 4px;
-        }
-        
-        .document-content {
-          line-height: 1.8;
-        }
-        
-        .document-content h2 {
-          page-break-after: avoid;
-        }
-        
-        .document-content p {
-          text-align: justify;
-          hyphens: auto;
+        .animate-pulse-slow {
+          animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
       `}</style>
     </div>
