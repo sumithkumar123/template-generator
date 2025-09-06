@@ -4,7 +4,7 @@ import ChatPanel from './components/ChatPanel';
 import PreviewPanel from './components/PreviewPanel';
 
 // --- Configuration ---
-const API_BASE_URL = 'http://127.0.0.1:8000/api'; // FastAPI backend URL
+const API_BASE_URL = '/api'; // FastAPI backend URL - proxy through Vite
 
 function App() {
   const [template, setTemplate] = useState(['Executive Summary', 'Key Findings', 'Conclusion']);
