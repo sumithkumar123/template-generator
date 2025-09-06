@@ -1,0 +1,21 @@
+# This tells Replit how to run your project.
+# It installs all dependencies and then starts the backend and frontend servers concurrently.
+run = "npm --prefix frontend install && pip install -r backend/requirements.txt && concurrently \"npm --prefix frontend run dev\" \"uvicorn backend.app.main:app --host 0.0.0.0 --port 8000\""
+
+# We need to tell Replit's package manager to install the 'concurrently' tool,
+# which allows us to run multiple commands at once.
+[packager]
+[packager.features]
+packageSearch = true
+guessImports = true
+
+[[deps.pip]]
+files = ["backend/requirements.txt"]
+
+[[deps.npm]]
+files = ["frontend/package.json"]
+
+[[packages]]
+[packages.concurrently]
+version = "latest"
+type = "npm"
