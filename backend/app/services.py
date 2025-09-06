@@ -240,6 +240,87 @@ def create_final_document(template: list[str], filenames: list[str], tone: str =
     return "\n".join(document_parts)
 
 
+def export_to_pptx(document_content: str, filename: str = "generated_presentation") -> str:
+    """
+    Exports document content to PowerPoint (PPTX) format.
+    Returns the file path of the generated presentation.
+    """
+    try:
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+        from pptx.enum.text import PP_ALIGN
+        
+        # Create a presentation object
+        prs = Presentation()
+        
+        # Split document into sections
+        sections = document_content.split('## ')
+        sections = [section.strip() for section in sections if section.strip()]
+        
+        # Add title slide
+        title_slide_layout = prs.slide_layouts[0]  # Title slide layout
+        slide = prs.slides.add_slide(title_slide_layout)
+        title = slide.shapes.title
+        subtitle = slide.placeholders[1]
+        
+        title.text = "Generated Report"
+        subtitle.text = "AI-Powered Template Generation Engine"
+        
+        # Process each section
+        for section in sections:
+            if not section.strip():
+                continue
+                
+            lines = section.split('\n')
+            section_title = lines[0].strip()
+            section_content = '\n'.join(lines[1:]).strip()
+            
+            # Create a new slide for each section
+            bullet_slide_layout = prs.slide_layouts[1]  # Content slide layout
+            slide = prs.slides.add_slide(bullet_slide_layout)
+            
+            # Set slide title
+            title = slide.shapes.title
+            title.text = section_title
+            
+            # Add content
+            content_placeholder = slide.placeholders[1]
+            
+            # Clean content for presentation
+            clean_content = section_content
+            clean_content = clean_content.replace('**', '')
+            clean_content = clean_content.replace('*', '•')
+            clean_content = clean_content.replace('[cite:', '\n[Source:')
+            clean_content = clean_content.replace('---', '')
+            
+            # Split into paragraphs and bullets
+            paragraphs = [p.strip() for p in clean_content.split('\n') if p.strip()]
+            
+            if paragraphs:
+                text_frame = content_placeholder.text_frame
+                text_frame.clear()
+                
+                for i, paragraph in enumerate(paragraphs[:10]):  # Limit to 10 items per slide
+                    if i == 0:
+                        p = text_frame.paragraphs[0]
+                    else:
+                        p = text_frame.add_paragraph()
+                    
+                    p.text = paragraph
+                    p.level = 1 if paragraph.startswith('•') else 0
+                    p.font.size = Pt(18 if p.level == 0 else 16)
+        
+        # Save the presentation
+        output_path = os.path.join(UPLOAD_DIRECTORY, f"{filename}.pptx")
+        prs.save(output_path)
+        
+        return output_path
+        
+    except Exception as e:
+        print(f"Error creating PowerPoint: {e}")
+        raise e
+
+
 def ask_clarifying_questions(template: list[str], filenames: list[str]) -> str:
     """
     AI-powered function to ask clarifying questions based on template and uploaded files.

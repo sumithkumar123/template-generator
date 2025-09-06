@@ -3,7 +3,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 from typing import List
 
-from .services import create_final_document, ask_clarifying_questions
+from .services import create_final_document, ask_clarifying_questions, export_to_pptx
 from .models import GenerateRequest, GenerateResponse, ClarifyRequest, ClarifyResponse
 
 router = APIRouter()
@@ -109,6 +109,34 @@ async def delete_file(filename: str):
             raise HTTPException(status_code=404, detail=f"File {filename} not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete file. Error: {e}")
+
+
+@router.post("/export/pptx")
+async def export_document_to_pptx(request: GenerateRequest):
+    """
+    Exports the generated document to PowerPoint format.
+    """
+    try:
+        # First generate the document
+        document_content = create_final_document(
+            template=request.template, 
+            filenames=request.filenames,
+            tone=request.tone,
+            style=request.style
+        )
+        
+        # Then export to PPTX
+        pptx_path = export_to_pptx(document_content, "generated_report")
+        filename = os.path.basename(pptx_path)
+        
+        return JSONResponse(content={
+            "message": "PowerPoint presentation generated successfully",
+            "filename": filename,
+            "path": pptx_path
+        }, status_code=200)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to export to PowerPoint. Error: {e}")
 
 
 @router.get("/health")
