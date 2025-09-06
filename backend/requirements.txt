@@ -4,3 +4,7 @@ python-multipart
 openai
 python-docx
 PyMuPDF
+pandas
+openpyxl
+python-pptx
+pillow
