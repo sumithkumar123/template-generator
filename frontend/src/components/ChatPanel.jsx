@@ -122,8 +122,15 @@ const ChatPanel = ({
               <div className="flex text-sm text-gray-600">
                 <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
                   <span>Upload files</span>
-                  <input id="file-upload" name="file-upload" type="file" className="sr-only" multiple 
-                         accept=".pdf,.docx,.xlsx,.xls,.pptx,.txt" onChange={handleFileUpload} />
+                  <input 
+                    id="file-upload" 
+                    name="file-upload" 
+                    type="file" 
+                    className="sr-only" 
+                    multiple={true}
+                    accept=".pdf,.docx,.xlsx,.xls,.pptx,.txt" 
+                    onChange={handleFileUpload} 
+                  />
                 </label>
                 <p className="pl-1">or drag and drop</p>
               </div>
