@@ -109,8 +109,14 @@ function App() {
         style: style
       });
       
-      // Show success message
-      alert(`PowerPoint presentation "${response.data.filename}" generated successfully!`);
+      // Trigger download
+      const downloadUrl = response.data.download_url;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = response.data.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       
       // Refresh files list
       loadFilesList();

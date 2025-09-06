@@ -1,6 +1,6 @@
 import os
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from typing import List
 
 from .services import create_final_document, ask_clarifying_questions, export_to_pptx
@@ -114,7 +114,7 @@ async def delete_file(filename: str):
 @router.post("/export/pptx")
 async def export_document_to_pptx(request: GenerateRequest):
     """
-    Exports the generated document to PowerPoint format.
+    Exports the generated document to PowerPoint format and returns download URL.
     """
     try:
         # First generate the document
@@ -132,11 +132,30 @@ async def export_document_to_pptx(request: GenerateRequest):
         return JSONResponse(content={
             "message": "PowerPoint presentation generated successfully",
             "filename": filename,
-            "path": pptx_path
+            "download_url": f"/api/download/{filename}"
         }, status_code=200)
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to export to PowerPoint. Error: {e}")
+
+
+@router.get("/download/{filename}")
+async def download_file(filename: str):
+    """
+    Downloads a generated file.
+    """
+    try:
+        file_path = os.path.join(UPLOAD_DIRECTORY, filename)
+        if os.path.exists(file_path):
+            return FileResponse(
+                path=file_path,
+                filename=filename,
+                media_type='application/vnd.openxmlformats-officedocument.presentationml.presentation'
+            )
+        else:
+            raise HTTPException(status_code=404, detail=f"File {filename} not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to download file. Error: {e}")
 
 
 @router.get("/health")
